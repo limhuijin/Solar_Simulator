@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import GRU, Dropout, Dense, Input
+from tensorflow.keras.layers import GRU, Dropout, Dense, Input, Bidirectional, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split, KFold
@@ -93,8 +93,8 @@ kf = KFold(n_splits=5, shuffle=True, random_state=42)
 val_losses = []
 
 # 조기 중단 및 학습률 감소 콜백 설정
-early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.0001)
+early_stopping = EarlyStopping(monitor='val_loss', patience=20, restore_best_weights=True)
+reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=10, min_lr=0.0001)
 
 for train_index, val_index in kf.split(X_scaled):
     X_train, X_val = X_scaled[train_index], X_scaled[val_index]
