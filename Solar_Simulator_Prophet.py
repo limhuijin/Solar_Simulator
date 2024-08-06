@@ -1,96 +1,98 @@
 import pandas as pd
-import numpy as np
-from prophet import Prophet
 import joblib
+import numpy as np
+import matplotlib.pyplot as plt
+from xgboost import XGBRegressor
 
-# 데이터 파일 경로 설정
-file_paths = [
-    ('영흥', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2018_최종데이터_한국남동발전_영흥.csv'),
-    ('영흥', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2019_최종데이터_한국남동발전_영흥.csv'),
-    ('진주', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2019_최종데이터_한국남동발전_진주.csv'),
-    ('창원', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2019_최종데이터_한국남동발전_창원.csv'),
-    ('구미', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2020_최종데이터_한국남동발전_구미.csv'),
-    ('영흥', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2020_최종데이터_한국남동발전_영흥.csv'),
-    ('진주', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2020_최종데이터_한국남동발전_진주.csv'),
-    ('창원', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2020_최종데이터_한국남동발전_창원.csv'),
-    ('영흥', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2021_최종데이터_한국남동발전_영흥.csv'),
-    ('진주', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2021_최종데이터_한국남동발전_진주.csv'),
-    ('구미', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2022_최종데이터_한국남동발전_구미.csv'),
-    ('영흥', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2022_최종데이터_한국남동발전_영흥.csv'),
-    ('진주', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2022_최종데이터_한국남동발전_진주.csv'),
-    ('창원', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2022_최종데이터_한국남동발전_창원.csv')
-]
+# 경로 설정
+samcheonpo_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터/2021_기상자료_예천_통합.csv'
 
-# 데이터 로드 및 결합 함수 정의
-def load_and_combine_data(file_paths):
-    data_list = []
-    for location, file_path in file_paths:
-        try:
-            data = pd.read_csv(file_path, encoding='utf-8')
-        except UnicodeDecodeError:
-            try:
-                data = pd.read_csv(file_path, encoding='latin1')
-            except UnicodeDecodeError:
-                data = pd.read_csv(file_path, encoding='cp949')
-        
-        data.columns = data.columns.str.strip()
-        if '총량' not in data.columns:
-            print(f"Warning: '총량' column not found in {file_path}")
-            continue
+# 기상 데이터 로드 및 전처리
+weather_data = pd.read_csv(samcheonpo_data_path)
+weather_data['일시'] = pd.to_datetime(weather_data['일시'])
+weather_data.set_index('일시', inplace=True)
+weather_data = weather_data[['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)', '평균풍속(m/s)']]
+weather_data = weather_data.sort_index()
 
-        max_capacity = data['총량'].max()
-        data['상대효율'] = data['총량'] / max_capacity
-        data['지역'] = location
-        data_list.append(data)
+# 결측치 처리
+weather_data = weather_data.interpolate()
+weather_data = weather_data.dropna()
 
-    combined_data = pd.concat(data_list, ignore_index=True)
-    return combined_data
+# 저장된 스케일러 로드
+scaler_X = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_X.gz')
+scaler_y = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_y.gz')
 
-# 데이터 로드 및 전처리
-data = load_and_combine_data(file_paths)
+# 기상 데이터 스케일링
+features = weather_data[['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)', '평균풍속(m/s)']]
+features_scaled = scaler_X.transform(features)
 
-# '일시' 열을 연, 월, 일로 변환
-data['일시'] = pd.to_datetime(data['일시'], errors='coerce')
+# 저장된 모델 로드
+model = XGBRegressor()
+model.load_model('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_xgb.json')
 
-# NaN 값 제거
-data = data.dropna(subset=['일시'])
+# 예측 수행
+y_pred_scaled = model.predict(features_scaled)
 
-data['연'] = data['일시'].dt.year
-data['월'] = data['일시'].dt.month
-data['일'] = data['일시'].dt.day
-data['요일'] = data['일시'].dt.dayofweek
+# 역스케일링
+y_pred = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1))
 
-# 결측값 처리 (중위수 사용)
-data['강수량(mm)'] = data['강수량(mm)'].fillna(0)
-numeric_cols = data.select_dtypes(include=[np.number]).columns
-data[numeric_cols] = data[numeric_cols].fillna(data[numeric_cols].median())
+# 예측 결과를 데이터프레임으로 변환
+forecast_df = pd.DataFrame(y_pred, columns=['총량'], index=weather_data.index)
 
-# 추가적인 특성 생성 (로그 변환 및 스케일링)
-data['log_총량'] = np.log1p(data['총량'])
-data['강수량(mm)_scaled'] = (data['강수량(mm)'] - data['강수량(mm)'].mean()) / data['강수량(mm)'].std()
-data['평균기온(℃)_scaled'] = (data['평균기온(℃)'] - data['평균기온(℃)'].mean()) / data['평균기온(℃)'].std()
+# 최대 값으로 백분율 계산
+max_value = forecast_df['총량'].max()
+forecast_df['백분율'] = (forecast_df['총량'] / max_value) * 100
 
-# Prophet 모델을 위한 데이터 준비
-df = data[['일시', 'log_총량', '강수량(mm)_scaled', '평균기온(℃)_scaled']].rename(columns={'일시': 'ds', 'log_총량': 'y'})
+# 시각화 함수 정의
+def plot_predictions(weather_data, forecast_df):
+    # 날짜 인덱스 추가
+    forecast_df['날짜'] = forecast_df.index
 
-# Prophet 모델 생성 및 하이퍼파라미터 튜닝
-model = Prophet(
-    changepoint_prior_scale=0.1,  # 트렌드 변화 / 기본값은 0.05
-    seasonality_prior_scale=10.0,  # 계절성 변동 / 기본값은 10.0
-    holidays_prior_scale=10.0,  # 공휴일 효과 / 기본값은 10.0
-    seasonality_mode='additive',  # 계절성 모드 / 기본값은 'additive'
-    n_changepoints=50  # 트렌드 변화점의 수 / 기본값은 25
-)
+    # 시간 기준에 따른 시각화
+    time_frames = [0, 1, 2]
+    file_names = ['model_365.png', 'model_12.png', 'model_24.png']
 
-# 중요한 리그레서 추가 (prior_scale 조정하여 중요도 증가)
-model.add_regressor('강수량(mm)_scaled', prior_scale=20.0)
-model.add_regressor('평균기온(℃)_scaled', prior_scale=20.0)
+    for time_frame, file_name in zip(time_frames, file_names):
+        plt.figure(figsize=(12, 6))
 
-# 모델 학습
-model.fit(df)
+        if time_frame == 0:
+            # 365일 기준
+            daily_predictions = forecast_df.groupby(forecast_df.index.dayofyear)['백분율'].mean()
+            days = np.arange(1, 366)
+            
+            # 일수를 맞추기 위해 빈 값을 0으로 채워서 길이를 맞춤
+            if len(daily_predictions) < 365:
+                daily_predictions = daily_predictions.reindex(days, fill_value=0)
 
-# 모델 저장
-model_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/model/model_prophet.pkl'
-joblib.dump(model, model_path)
+            plt.plot(days, daily_predictions, label='Predicted Efficiency (%)', color='b')
+            plt.xlabel('Day of the Year')
+        elif time_frame == 1:
+            # 12개월 기준
+            monthly_predictions = forecast_df.groupby(forecast_df.index.month)['백분율'].mean()
+            months = np.arange(1, 13)
+            plt.plot(months, monthly_predictions, label='Predicted Efficiency (%)', color='b')
+            plt.xlabel('Month')
+        elif time_frame == 2:
+            # 24기간 기준 (1년을 24개로 나눔, 각 기간은 약 15일)
+            forecast_df['기간'] = (forecast_df.index.dayofyear - 1) // 15
+            forecast_df = forecast_df[forecast_df['기간'] < 24]  # 정확히 24개 기간으로 제한
+            biweekly_predictions = forecast_df.groupby('기간')['백분율'].mean()
+            periods = np.arange(0, 24)  # 0부터 23까지
+            
+            # 기간수를 맞추기 위해 빈 값을 0으로 채워서 길이를 맞춤
+            if len(biweekly_predictions) < 24:
+                biweekly_predictions = biweekly_predictions.reindex(periods, fill_value=0)
 
-print(f'Model saved to {model_path}')
+            plt.plot(periods, biweekly_predictions, label='Predicted Efficiency (%)', color='b')
+            plt.xlabel('Biweekly Period')
+
+        # 시각화 및 이미지 저장
+        plt.legend()
+        plt.title('Predicted Solar Energy Efficiency')
+        plt.ylabel('Efficiency (%)')
+        plt.grid(True)
+        plt.savefig(file_name)
+        plt.close()
+
+# 예측 결과 시각화
+plot_predictions(weather_data, forecast_df)
