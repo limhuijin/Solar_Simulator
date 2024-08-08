@@ -2,14 +2,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import joblib
 from sklearn.preprocessing import StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 # 저장된 모델 불러오기
-best_model = joblib.load('best_model.pkl')
+best_model = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/Solar_Simulator/best_model.pkl')
 
 # 데이터 전처리
 def load_and_preprocess_data():
     # 기상 데이터 로드 및 전처리
-    weather_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터/2021_기상자료_삼천포_통합.csv'
+    weather_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터/2021_기상자료_예천_통합.csv'
     weather_data = pd.read_csv(weather_data_path)
     weather_data['일시'] = pd.to_datetime(weather_data['일시'])
     weather_data.set_index('일시', inplace=True)
@@ -17,7 +19,7 @@ def load_and_preprocess_data():
     weather_data = weather_data.sort_index()
 
     # 태양광 데이터 로드 및 전처리
-    solar_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/태양광 데이터/2021_태양광데이터_한국남동발전_삼천포.csv'
+    solar_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/태양광 데이터/2021_태양광데이터_한국남동발전_예천.csv'
     solar_data = pd.read_csv(solar_data_path)
     solar_data['년월일'] = pd.to_datetime(solar_data['년월일'])
     solar_data.set_index('년월일', inplace=True)
@@ -29,21 +31,32 @@ def load_and_preprocess_data():
 weather_data, solar_data = load_and_preprocess_data()
 
 # 스케일러 불러오기
-scaler_X = StandardScaler()
-scaler_y = StandardScaler()
+scaler_X = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/Solar_Simulator/scaler_X.gz')
+scaler_y = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/Solar_Simulator/scaler_y.gz')
+
+# NaN 값 처리
+imputer = SimpleImputer(strategy='mean')
+weather_data_imputed = imputer.fit_transform(weather_data)
 
 # 데이터 스케일링 (모델 학습 시 사용한 스케일러와 동일하게 적용)
-features_scaled = scaler_X.fit_transform(weather_data)
-target_scaled = scaler_y.fit_transform(solar_data['총량(%)'].values.reshape(-1, 1))
+features_scaled = scaler_X.transform(weather_data_imputed)
+target_scaled = scaler_y.transform(solar_data['총량(%)'].values.reshape(-1, 1))
 
 # 예측 수행
 y_pred_scaled = best_model.predict(features_scaled)
 
-# 역스케일링
+# 예측 결과를 백분율로 변환 (역스케일링)
 y_pred = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1))
 
 # 예측 결과를 데이터프레임으로 변환
 forecast_df = pd.DataFrame(y_pred, columns=['예측 총량(%)'], index=weather_data.index)
+
+# 평균 절대 오차(MAE)와 평균 제곱근 오차(RMSE) 계산
+mae = mean_absolute_error(solar_data['총량(%)'], forecast_df['예측 총량(%)'])
+rmse = mean_squared_error(solar_data['총량(%)'], forecast_df['예측 총량(%)'], squared=False)
+
+print(f'Mean Absolute Error (MAE): {mae:.2f}%')
+print(f'Root Mean Squared Error (RMSE): {rmse:.2f}%')
 
 # 실제 데이터와 비교 시각화 함수 정의
 def plot_comparison(actual, predicted, time_frame='daily'):
