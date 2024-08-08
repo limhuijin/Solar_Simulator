@@ -11,7 +11,7 @@ best_model = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/Solar_Sim
 # 데이터 전처리
 def load_and_preprocess_data():
     # 기상 데이터 로드 및 전처리
-    weather_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터/2021_기상자료_예천_통합.csv'
+    weather_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터/2021_기상자료_삼천포_통합.csv'
     weather_data = pd.read_csv(weather_data_path)
     weather_data['일시'] = pd.to_datetime(weather_data['일시'])
     weather_data.set_index('일시', inplace=True)
@@ -19,7 +19,7 @@ def load_and_preprocess_data():
     weather_data = weather_data.sort_index()
 
     # 태양광 데이터 로드 및 전처리
-    solar_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/태양광 데이터/2021_태양광데이터_한국남동발전_예천.csv'
+    solar_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/태양광 데이터/2021_태양광데이터_한국남동발전_삼천포.csv'
     solar_data = pd.read_csv(solar_data_path)
     solar_data['년월일'] = pd.to_datetime(solar_data['년월일'])
     solar_data.set_index('년월일', inplace=True)
