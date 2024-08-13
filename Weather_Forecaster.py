@@ -1,15 +1,15 @@
-import numpy as np
 import pandas as pd
-from tensorflow.keras.models import load_model
-import joblib
-import matplotlib.pyplot as plt
+import numpy as np
+import os
+from sklearn.preprocessing import MinMaxScaler
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, LSTM, Dropout
 
-# 모델과 스케일러 로드
-model = load_model('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster.keras')
-scaler = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster.pkl')
+# 지역별 데이터 병합 함수
+def load_and_merge_data_for_region(region_name, base_path):
+    rain_file = os.path.join(base_path, f'1975_2022_기상자료_{region_name}_강수량.csv')
+    temp_file = os.path.join(base_path, f'1975_2022_기상자료_{region_name}_기온.csv')
 
-# 데이터 로드 및 전처리
-def load_and_prepare_data(rain_file, temp_file):
     # CSV 파일 로드
     rain_df = pd.read_csv(rain_file)
     temp_df = pd.read_csv(temp_file)
@@ -22,66 +22,71 @@ def load_and_prepare_data(rain_file, temp_file):
     rain_df.set_index('일시', inplace=True)
     temp_df.set_index('일시', inplace=True)
 
-    # 필요한 피처만 선택 (학습 시 사용된 피처와 동일하게)
-    features_to_use = ['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)', '1시간최다강수량(mm)', 'Unnamed: 6']
-
-    rain_df = rain_df[['강수량(mm)']]  # 강수량 피처만 사용
-    temp_df = temp_df[['평균기온(℃)', '최고기온(℃)', '최저기온(℃)']]  # 기온 관련 피처만 사용
+    # 강수량과 기온 데이터에서 필요한 피처만 선택
+    rain_df = rain_df[['강수량(mm)']]
+    temp_df = temp_df[['평균기온(℃)', '최고기온(℃)', '최저기온(℃)']]
 
     # 데이터 병합 (inner join으로 날짜 기준 병합)
     merged_df = rain_df.join(temp_df, how='inner')
 
-    # 누락된 피처 추가 (값은 0으로 채우기)
-    for feature in features_to_use:
-        if feature not in merged_df.columns:
-            merged_df[feature] = 0
-
-    # 피처 순서를 모델 학습 시 사용한 피처 순서와 동일하게 유지
-    merged_df = merged_df[features_to_use]
-
     # 결측치 처리: 결측값을 0으로 대체
     merged_df = merged_df.fillna(0)
 
-    # 데이터 스케일링 (학습 시 사용된 scaler 사용)
-    scaled_data = scaler.transform(merged_df)
+    return merged_df
 
-    return scaled_data
+# 데이터 로드 및 병합
+base_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터_1975_2022/'  # 모든 CSV 파일이 위치한 기본 경로
+regions = ["구미", "영흥", "예천", "진주"]  # 창원을 제외
+all_sequences = []
 
-# 1년치 데이터를 로드
-rain_file = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터/2022_기상자료_서울_강수량.csv'
-temp_file = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터/2022_기상자료_서울_기온.csv'
+for region in regions:
+    merged_data = load_and_merge_data_for_region(region, base_path)
 
-scaled_data = load_and_prepare_data(rain_file, temp_file)
+    # 데이터 스케일링
+    scaler = MinMaxScaler()
+    scaled_data = scaler.fit_transform(merged_data)
 
-# 시계열 데이터로 변환 (1년치 데이터 사용)
-sequence_length = len(scaled_data)
-X_input = scaled_data.reshape(1, sequence_length, scaled_data.shape[1])
+    # 시계열 데이터 생성 (47년 데이터를 포함하는 시퀀스)
+    sequence_length = 365 * 47  # 47년의 데이터를 포함하는 시퀀스
+    X, y = [], []
 
-# 2024년도 날씨 예측
-predictions = model.predict(X_input)
+    for i in range(sequence_length, len(scaled_data) - 365):
+        X.append(scaled_data[i-sequence_length:i])
+        y.append(scaled_data[i:i+365, :])  # 365일 동안의 모든 피처 예측
 
-# 스케일링 복원 (원래의 스케일로 되돌림)
-predictions_reshaped = predictions[0].reshape(-1, scaled_data.shape[1])
-predicted_weather_2024 = scaler.inverse_transform(predictions_reshaped)
+    # 지역별 데이터를 추가
+    all_sequences.append((np.array(X), np.array(y)))
 
-# 예측 결과 확인
-predicted_weather_2024_df = pd.DataFrame(predicted_weather_2024, columns=['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)', '1시간최다강수량(mm)', 'Unnamed: 6'])
+# 모든 지역에서 생성된 시퀀스를 결합
+X_train = np.concatenate([seq[0] for seq in all_sequences], axis=0)
+y_train = np.concatenate([seq[1] for seq in all_sequences], axis=0)
 
-# 강수량 시각화 (강수량 예측이 0 이상이면 비가 온 것으로 처리)
-plt.figure(figsize=(12, 6))
+# X_train과 y_train의 형태 확인
+print(f"X_train.shape: {X_train.shape}")
+print(f"y_train.shape: {y_train.shape}")
 
-plt.subplot(2, 1, 1)
-plt.plot(predicted_weather_2024_df['강수량(mm)'].apply(lambda x: 1 if x > 0 else 0), label='강수량 예측 (비가 오는 날)')
-plt.ylabel('강수량 (1=비가 옴, 0=비가 안 옴)')
-plt.title('2024년도 강수량 예측')
-plt.legend()
+# LSTM 모델 생성
+model = Sequential()
 
-# 기온 시각화
-plt.subplot(2, 1, 2)
-plt.plot(predicted_weather_2024_df['평균기온(℃)'], label='기온 예측', color='orange')
-plt.ylabel('기온 (℃)')
-plt.title('2024년도 기온 예측')
-plt.legend()
+# LSTM 레이어 추가
+model.add(LSTM(units=100, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])))
+model.add(Dropout(0.2))
 
-plt.tight_layout()
-plt.show()
+model.add(LSTM(units=100, return_sequences=False))
+model.add(Dropout(0.2))
+
+# 출력 레이어 (365일 동안의 모든 피처 예측)
+model.add(Dense(units=365 * 4))  # 365일 동안의 4가지 피처(강수량, 평균기온, 최고기온, 최저기온)를 예측
+
+# 모델 컴파일
+model.compile(optimizer='adam', loss='mean_squared_error')
+
+# 모델 훈련
+history = model.fit(X_train, y_train.reshape(y_train.shape[0], -1), epochs=50, batch_size=32)
+
+# 모델을 .keras 형식으로 저장
+model.save('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster_full.keras')
+
+# 스케일러 저장
+import joblib
+joblib.dump(scaler, 'C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster_full.pkl')

@@ -3,10 +3,15 @@ import pandas as pd
 from tensorflow.keras.models import load_model
 import joblib
 import matplotlib.pyplot as plt
+from sklearn.metrics import mean_absolute_error  # 추가된 부분
 
 # 모델과 스케일러 로드
 model = load_model('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster_full.keras')
 scaler = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster_full.pkl')
+
+best_model_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/model_VotingRegressor_2.pkl')  # 추가된 부분
+scaler_X_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_X_VotingRegressor_2.gz')  # 추가된 부분
+scaler_y_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_Y_VotingRegressor_2.gz')  # 추가된 부분
 
 # 데이터 로드 및 전처리
 def load_and_prepare_data(rain_file, temp_file):
@@ -56,6 +61,9 @@ predictions_reshaped = predictions.reshape(365, 4)
 
 predicted_weather_2023 = scaler.inverse_transform(predictions_reshaped)
 
+# 강수량이 음수로 예측된 경우 0으로 설정 (추가된 부분)
+predicted_weather_2023[:, 0] = np.maximum(predicted_weather_2023[:, 0], 0)
+
 # 예측 결과를 데이터프레임으로 변환
 predicted_weather_2023_df = pd.DataFrame(predicted_weather_2023, columns=["강수량(mm)", "평균기온(℃)", "최고기온(℃)", "최저기온(℃)"])
 
@@ -68,23 +76,57 @@ _, actual_data_2023 = load_and_prepare_data(rain_file_2023, temp_file_2023)
 # 실제 데이터에서 강수량과 평균기온만 추출
 actual_weather_2023_df = actual_data_2023[['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)']].reset_index(drop=True)
 
-# 시각화
-plt.figure(figsize=(12, 8))
+# 태양광 발전량 예측을 위해 필요한 피처 선택 및 스케일링 (추가된 부분)
+solar_features_predicted = predicted_weather_2023_df[['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)']]
+solar_features_actual = actual_weather_2023_df[['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)']]
 
-# 강수량 시각화
-plt.subplot(2, 1, 1)
+solar_features_predicted_scaled = scaler_X_percent.transform(solar_features_predicted)
+solar_features_actual_scaled = scaler_X_percent.transform(solar_features_actual)
+
+solar_generation_predicted_scaled = best_model_percent.predict(solar_features_predicted_scaled)
+solar_generation_predicted_percent = scaler_y_percent.inverse_transform(solar_generation_predicted_scaled.reshape(-1, 1))
+
+# 최대 발전량(kWh) 계산 (추가된 부분)
+solar_actual_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/태양광 데이터/2022_태양광데이터_한국남동발전_창원.csv'
+solar_actual_df = pd.read_csv(solar_actual_path)
+solar_actual_df['년월일'] = pd.to_datetime(solar_actual_df['년월일'])
+solar_actual_df.set_index('년월일', inplace=True)
+actual_solar_generation = solar_actual_df['총량'].values[:len(predicted_weather_2023_df)]
+
+max_generation_capacity = solar_actual_df['총량'].max()
+
+# 예측된 백분율을 이용한 발전량 계산 (추가된 부분)
+predicted_generation_kwh = (solar_generation_predicted_percent / 100) * max_generation_capacity
+
+# MAE 계산 (추가된 부분)
+mae = mean_absolute_error(actual_solar_generation, predicted_generation_kwh)
+print(f"MAE: {mae}")
+
+# 시각화
+plt.figure(figsize=(18, 24))
+
+# 강수량 비교 시각화
+plt.subplot(4, 1, 1)
 plt.plot(predicted_weather_2023_df['강수량(mm)'], label='Predicted Rain')
 plt.plot(actual_weather_2023_df['강수량(mm)'], label='Actual Rain', linestyle='--')
 plt.ylabel('Rainfall (mm)')
 plt.title('Predicted vs Actual Rainfall for 2023')
 plt.legend()
 
-# 기온 시각화
-plt.subplot(2, 1, 2)
+# 기온 비교 시각화
+plt.subplot(4, 1, 2)
 plt.plot(predicted_weather_2023_df['평균기온(℃)'], label='Predicted Temperature', color='orange')
 plt.plot(actual_weather_2023_df['평균기온(℃)'], label='Actual Temperature', color='blue', linestyle='--')
 plt.ylabel('Temperature (°C)')
 plt.title('Predicted vs Actual Temperature for 2023')
+plt.legend()
+
+# 태양광 발전량 예측 및 실제 발전량 비교 시각화 (백분율) (추가된 부분)
+plt.subplot(4, 1, 3)
+plt.plot(predicted_weather_2023_df.index, solar_generation_predicted_percent, label='Predicted Solar Generation (%)', color='green')
+plt.plot(predicted_weather_2023_df.index, actual_solar_generation / max_generation_capacity * 100, label='Actual Solar Generation (%)', color='red', linestyle=':')
+plt.ylabel('Solar Generation (%)')
+plt.title(f'Solar Generation: Prediction vs Actual (Percentage)\nMAE: {mae:.2f}')
 plt.legend()
 
 plt.tight_layout()
