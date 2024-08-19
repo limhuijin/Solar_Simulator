@@ -1,69 +1,62 @@
 import pandas as pd
 import numpy as np
 import joblib
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 
-# 백분율 예측 모델 불러오기
+# 모델과 스케일러 로드
 best_model_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/model_VotingRegressor_2.pkl')
 scaler_X_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_X_VotingRegressor_2.gz')
 scaler_y_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_Y_VotingRegressor_2.gz')
 
-# 데이터 전처리
-def load_and_preprocess_data():
-    weather_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터/2017_기상자료_예천_통합.csv'
-    weather_data = pd.read_csv(weather_data_path)
-    weather_data['일시'] = pd.to_datetime(weather_data['일시'])
-    weather_data.set_index('일시', inplace=True)
-    weather_data = weather_data[['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)', '평균풍속(m/s)']]
-    weather_data = weather_data.sort_index()
-    
-    return weather_data
+# 데이터 로드 및 전처리
+def load_and_preprocess_data(rain_file, temp_file):
+    # CSV 파일 로드
+    rain_df = pd.read_csv(rain_file)
+    temp_df = pd.read_csv(temp_file)
 
-# 기상 데이터만 사용하여 예측 수행
-weather_data = load_and_preprocess_data()
+    # '일시'를 datetime 형식으로 변환
+    rain_df['일시'] = pd.to_datetime(rain_df['일시'])
+    temp_df['일시'] = pd.to_datetime(temp_df['일시'])
 
-# NaN 값 처리
-imputer = SimpleImputer(strategy='mean')
-weather_data_imputed = imputer.fit_transform(weather_data)
+    # '일시'를 인덱스로 설정
+    rain_df.set_index('일시', inplace=True)
+    temp_df.set_index('일시', inplace=True)
+
+    # 필요한 피처만 선택
+    rain_df = rain_df[['강수량(mm)']]
+    temp_df = temp_df[['평균기온(℃)', '최고기온(℃)', '최저기온(℃)']]
+
+    # 데이터 병합 (inner join으로 날짜 기준 병합)
+    merged_df = rain_df.join(temp_df, how='inner')
+
+    # 결측치 처리: 결측값을 평균으로 대체
+    imputer = SimpleImputer(strategy='mean')
+    merged_df_imputed = pd.DataFrame(imputer.fit_transform(merged_df), columns=merged_df.columns, index=merged_df.index)
+
+    return merged_df_imputed
+
+# 데이터 로드
+rain_file = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터_1975_2022/1975_2022_기상자료_구미_강수량.csv'
+temp_file = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/날씨 데이터_1975_2022/1975_2022_기상자료_구미_기온.csv'
+
+weather_data = load_and_preprocess_data(rain_file, temp_file)
 
 # 백분율 예측
-features_scaled_percent = scaler_X_percent.transform(weather_data_imputed)
+features_scaled_percent = scaler_X_percent.transform(weather_data)
 y_pred_scaled_percent = best_model_percent.predict(features_scaled_percent)
 y_pred_percent = scaler_y_percent.inverse_transform(y_pred_scaled_percent.reshape(-1, 1))
 
+# 최대 발전량(kWh) 설정 (예: 1000 kWh)
+max_generation_capacity = 9000  # 적절한 값으로 설정해야 합니다
+
+# 예측된 백분율을 이용한 실제 발전량 총량 계산
+y_pred_total = (y_pred_percent / 100) * max_generation_capacity
+
 # 예측 결과를 데이터프레임으로 변환
-forecast_df_percent = pd.DataFrame(y_pred_percent, columns=['예측 총량(%)'], index=weather_data.index)
+forecast_df_total = pd.DataFrame(y_pred_total, columns=['예측 총량(kWh)'], index=weather_data.index)
 
-# 시각화 함수
-def plot_forecast(predicted_percent, time_frame='daily'):
-    if time_frame == 'daily':
-        predicted_percent = predicted_percent.resample('D').mean()
-        title = 'Daily Solar Generation Prediction'
-        xlabel = 'Day of the Year'
-    elif time_frame == 'monthly':
-        predicted_percent = predicted_percent.resample('ME').mean()
-        title = 'Monthly Solar Generation Prediction'
-        xlabel = 'Month'
-    elif time_frame == 'biweekly':
-        predicted_percent = predicted_percent.resample('2W').mean()
-        title = 'Biweekly Solar Generation Prediction'
-        xlabel = 'Biweekly Period'
+# 예측 결과를 CSV 파일로 저장
+output_file_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/태양광 데이터/1975_2022_태양광데이터_예측_구미_총량.csv'
+forecast_df_total.to_csv(output_file_path, encoding='utf-8-sig')
 
-    plt.figure(figsize=(12, 8))
-    
-    plt.plot(predicted_percent.index, predicted_percent['예측 총량(%)'], label='Predicted Solar Generation (%)', color='red')
-    plt.xlabel(xlabel)
-    plt.ylabel('Solar Generation (%)')
-    plt.title(f"{title}")
-    plt.legend()
-    plt.grid(True)
-    
-    plt.tight_layout()
-    plt.show()
-
-# 예측 데이터 시각화
-plot_forecast(forecast_df_percent, 'daily')
-plot_forecast(forecast_df_percent, 'monthly')
-plot_forecast(forecast_df_percent, 'biweekly')
+print(f"예측 결과가 {output_file_path}에 저장되었습니다.")

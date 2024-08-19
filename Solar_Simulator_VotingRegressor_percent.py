@@ -45,6 +45,10 @@ file_paths = [
     ('영흥', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2022_최종데이터_한국남동발전_영흥.csv'),
     ('진주', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2022_최종데이터_한국남동발전_진주.csv'),
     ('창원', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/2022_최종데이터_한국남동발전_창원.csv'),
+    ('구미', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/1975_2022_최종데이터_예측_구미.csv'),
+    ('영흥', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/1975_2022_최종데이터_예측_영흥.csv'),
+    ('예천', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/1975_2022_최종데이터_예측_예천.csv'),
+    ('진주', 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/최종 데이터/1975_2022_최종데이터_예측_진주.csv'),
 ]
 
 dfs = []

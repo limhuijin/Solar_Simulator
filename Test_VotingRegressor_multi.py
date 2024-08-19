@@ -7,9 +7,9 @@ from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 # 백분율 예측 모델 불러오기
-best_model_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/model_VotingRegressor_2.pkl')
-scaler_X_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_X_VotingRegressor_2.gz')
-scaler_y_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_Y_VotingRegressor_2.gz')
+best_model_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/model_VotingRegressor_3.pkl')
+scaler_X_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_X_VotingRegressor_3.gz')
+scaler_y_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_Y_VotingRegressor_3.gz')
 
 # 데이터 전처리
 def load_and_preprocess_data():
@@ -17,7 +17,7 @@ def load_and_preprocess_data():
     weather_data = pd.read_csv(weather_data_path)
     weather_data['일시'] = pd.to_datetime(weather_data['일시'])
     weather_data.set_index('일시', inplace=True)
-    weather_data = weather_data[['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)', '평균풍속(m/s)']]
+    weather_data = weather_data[['강수량(mm)', '평균기온(℃)', '최고기온(℃)', '최저기온(℃)']]
     weather_data = weather_data.sort_index()
 
     solar_data_path = 'C:/Users/user/Desktop/coding/Solar_Simulator/csv/태양광 데이터/2021_태양광데이터_한국남동발전_예천.csv'
@@ -113,3 +113,8 @@ def plot_comparison(actual, predicted_percent, predicted_actual, time_frame='dai
 plot_comparison(solar_data, forecast_df_percent, forecast_df_actual, 'daily')
 plot_comparison(solar_data, forecast_df_percent, forecast_df_actual, 'monthly')
 plot_comparison(solar_data, forecast_df_percent, forecast_df_actual, 'biweekly')
+
+# 예측 결과를 CSV 파일로 저장
+forecast_df_actual.to_csv('C:/Users/user/Desktop/coding/Solar_Simulator/predicted_solar_generation_01.csv', encoding='utf-8-sig')
+
+print("Predicted solar generation data has been saved to 'predicted_solar_generation_01.csv'.")

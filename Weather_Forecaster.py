@@ -85,8 +85,8 @@ model.compile(optimizer='adam', loss='mean_squared_error')
 history = model.fit(X_train, y_train.reshape(y_train.shape[0], -1), epochs=50, batch_size=32)
 
 # 모델을 .keras 형식으로 저장
-model.save('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster_full.keras')
+model.save('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster.keras')
 
 # 스케일러 저장
 import joblib
-joblib.dump(scaler, 'C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster_full.pkl')
+joblib.dump(scaler, 'C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster.pkl')

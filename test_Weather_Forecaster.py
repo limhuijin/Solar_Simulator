@@ -5,8 +5,8 @@ import joblib
 import matplotlib.pyplot as plt
 
 # 모델과 스케일러 로드
-model = load_model('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster_full.keras')
-scaler = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster_full.pkl')
+model = load_model('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster.keras')
+scaler = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster.pkl')
 
 # 데이터 로드 및 전처리
 def load_and_prepare_data(rain_file, temp_file):

@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import mean_absolute_error  # 추가된 부분
 
 # 모델과 스케일러 로드
-model = load_model('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster_full.keras')
-scaler = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster_full.pkl')
+model = load_model('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster.keras')
+scaler = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/scaler_Weather_Forecaster.pkl')
 
 best_model_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/model_VotingRegressor_2.pkl')  # 추가된 부분
 scaler_X_percent = joblib.load('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_XGB/scaler_X_VotingRegressor_2.gz')  # 추가된 부분
