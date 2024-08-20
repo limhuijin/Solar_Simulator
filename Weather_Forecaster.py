@@ -82,7 +82,7 @@ model.add(Dense(units=365 * 4))  # 365일 동안의 4가지 피처(강수량, �
 model.compile(optimizer='adam', loss='mean_squared_error')
 
 # 모델 훈련
-history = model.fit(X_train, y_train.reshape(y_train.shape[0], -1), epochs=50, batch_size=32)
+history = model.fit(X_train, y_train.reshape(y_train.shape[0], -1), epochs=100, batch_size=32)
 
 # 모델을 .keras 형식으로 저장
 model.save('C:/Users/user/Desktop/coding/Solar_Simulator/model/model_Weather_Forecaster.keras')
